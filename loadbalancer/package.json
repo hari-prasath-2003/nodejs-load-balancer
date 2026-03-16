@@ -3,11 +3,11 @@
   "type": "module",
   "version": "1.0.0",
   "description": "",
-  "main": "app.js",
+  "main": "master.js",
   "scripts": {
-    "dev": "tsx watch src/app.ts",
+    "dev": "tsx watch src/master.ts",
     "build": "tsc && tsc-alias",
-    "start": "node dist/app.js"
+    "start": "node dist/master.js"
   },
   "keywords": [],
   "author": "",

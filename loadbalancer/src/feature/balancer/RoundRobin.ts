@@ -1,24 +1,34 @@
+import type { BackendEndpointAddedEvent } from "@/interface/BackendEndpointAddedEvent.js";
 import LoadBalancer from "./LoadBalancer.js";
+import logger from "@/infra/log/Logger.js";
 
 export default class RoundRobinBalancer extends LoadBalancer {
-  private currentIndex: number = 0;
+  private rrIndexByPath: Record<string, number> = {};
 
-  protected handleServerUpdate(message: string): void {
-    super.handleServerUpdate(message);
-    if (this.currentIndex >= this.servers.length) {
-      this.currentIndex = 0;
-    }
-  }
+  // protected onBackendPoolUpdated(payload: BackendEndpointAddedEvent): void {
+  //   super.onBackendPoolUpdated(payload);
+  //   const { path, address } = payload;
+  //   const pool = this.backendPools[path] ?? [];
+  //   const index = this.rrIndexByPath[path] ?? 0;
 
-  public getNextServer(): string | null {
-    if (!this.servers || this.servers.length === 0) {
+  //   if (index >= pool.length) {
+  //     this.rrIndexByPath[path] = 0;
+  //   }
+  // }
+
+  public getNextServer(path: string): string | null {
+    const pool = this.backendPools[path];
+
+    if (!pool || pool.length === 0) {
       return null;
     }
 
-    const server = this.servers[this.currentIndex]!;
+    const index = this.rrIndexByPath[path] ?? 0;
+    const server = pool[index]!;
 
-    this.currentIndex = (this.currentIndex + 1) % this.servers.length;
-    this.incrementConnection(server.address);
+    this.rrIndexByPath[path] = (index + 1) % pool.length;
+
+    this.incrementConnection(path, server.address);
     return server.address;
   }
 }

@@ -4,10 +4,12 @@ import path from "path";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.static(path.join(process.cwd(), "dist")));
+const DIST_PATH = path.join(process.cwd(), "dist");
+
+app.use("/web", express.static(DIST_PATH));
 
 app.get(/.*/, (req, res) => {
-  res.sendFile(path.join(process.cwd(), "dist", "index.html"));
+  res.sendFile(path.join(DIST_PATH, "index.html"));
 });
 
 app.listen(PORT, () => {
