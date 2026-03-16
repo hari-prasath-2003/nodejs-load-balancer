@@ -1,5 +1,7 @@
-export default interface CacheManager<K, V> {
+export default interface CacheManager<K = string, V = string> {
   get(key: K): Promise<V | null>;
+  getSetMembers(key: K): Promise<V[]>;
+  getHashMap(key: string): Promise<Record<string, string>>;
   put(key: K, value: V, ttl?: number): void;
   delete(key: K): void;
   clear(): void;

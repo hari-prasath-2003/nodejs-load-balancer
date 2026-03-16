@@ -1,63 +1,61 @@
 import logger from "@/infra/log/Logger.js";
 import type CacheManager from "@/interface/CacheManager.js";
-import type { ServerInfo } from "@/interface/ServerInfo.js";
+import type { BackendEndpointAddedEvent } from "@/interface/BackendEndpointAddedEvent.js";
+import type { BackendPoolMap } from "@/interface/BackendPoolMap.js";
 
 export default abstract class LoadBalancer {
-  private cacheManager: CacheManager<string, string>;
-  protected servers: ServerInfo[];
+  constructor(readonly backendPools: BackendPoolMap) {}
 
-  constructor(cacheManager: CacheManager<string, string>) {
-    this.cacheManager = cacheManager;
-    this.servers = [];
+  // protected onBackendPoolUpdated(payload: BackendEndpointAddedEvent) {
+  //   const { path, address } = payload;
 
-    this.cacheManager.subscribe(
-      "server-updates",
-      this.handleServerUpdate.bind(this),
-    );
+  //   const existing = this.backendPools[path] ?? [];
 
-    this.initializeServers();
-  }
+  //   if (existing.some((s) => s.address === address)) {
+  //     return;
+  //   }
 
-  private async initializeServers() {
-    const currentList = await this.cacheManager.get("active-servers-list");
-    if (currentList) {
-      this.handleServerUpdate(currentList);
+  //   this.backendPools = {
+  //     ...this.backendPools,
+  //     [path]: [...existing, { address, activeConnections: 0, isActive: false }],
+  //   };
+  // }
+
+  public decrementConnection(path: string, address: string): void {
+    const backendPools = this.backendPools[path];
+    if (!backendPools) {
+      logger.error(`No path exist on the name ${path}`);
+      return;
     }
-  }
-
-  protected handleServerUpdate(message: string): void {
-    logger.info(`Updating server list: ${message}`);
-    const incommingAddress = message.split(",");
-
-    const existingAddresses = this.servers.map((s) => s.address);
-
-    const filteredAddresses = incommingAddress.filter(
-      (addr) => !existingAddresses.includes(addr),
-    );
-    const newServers = filteredAddresses.map((server) => ({
-      address: server,
-      activeConnections: 0,
-    }));
-    this.servers = [...this.servers, ...newServers];
-  }
-
-  public decrementConnection(address: string): void {
-    const server = this.servers.find((s) => s.address === address);
+    const server = backendPools.find((s) => s.address === address);
     if (server && server.activeConnections > 0) {
       server.activeConnections--;
     }
   }
 
-  public incrementConnection(address: string): void {
-    const server = this.servers.find((s) => s.address === address);
+  public incrementConnection(path: string, address: string): void {
+    const backendPools = this.backendPools[path];
+    if (!backendPools) {
+      logger.error(`No path exist on the name ${path}`);
+      return;
+    }
+    const server = backendPools.find((s) => s.address === address);
     if (server) {
       server.activeConnections++;
     }
   }
 
-  public abstract getNextServer(): string | null;
+  public abstract getNextServer(path: string): string | null;
 
-  public destroy(): void {
-    this.cacheManager.disconnect();
+  private markServerUnhealthy(path: string, address: string) {
+    const serverList = this.backendPools[path] ?? [];
+
+    serverList.map((server) => {
+      if (server.address === address) {
+        return { ...server, isActive: false };
+      } else {
+        return { ...server };
+      }
+    });
   }
 }

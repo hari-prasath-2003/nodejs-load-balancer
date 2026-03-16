@@ -2,23 +2,31 @@ import type CacheManager from "@/interface/CacheManager.js";
 import { Redis } from "ioredis";
 
 export class RedisCacheManager implements CacheManager<string, string> {
-  private commandClient = new Redis("redis_container:6379");
+  private commandClient: Redis;
+  private subscriberClient: Redis;
 
-  private subscriberClient = new Redis("redis_container:6379");
+  constructor() {
+    this.commandClient = new Redis("redis_container:6379");
+    this.subscriberClient = new Redis("redis_container:6379");
+  }
 
   async get(key: string): Promise<string | null> {
-    const value = await this.commandClient.get(key);
-    if (!value) return null;
+    return this.commandClient.get(key);
+  }
 
-    return JSON.parse(value);
+  async getSetMembers(key: string): Promise<string[]> {
+    return this.commandClient.smembers(key);
+  }
+
+  async getHashMap(key: string): Promise<Record<string, string>> {
+    return this.commandClient.hgetall(key);
   }
 
   put(key: string, value: string, ttl?: number): void {
-    const stringifiedValue = JSON.stringify(value);
     if (ttl) {
-      this.commandClient.set(key, stringifiedValue, "EX", ttl);
+      this.commandClient.set(key, value, "EX", ttl);
     } else {
-      this.commandClient.set(key, stringifiedValue);
+      this.commandClient.set(key, value);
     }
   }
 
@@ -39,6 +47,7 @@ export class RedisCacheManager implements CacheManager<string, string> {
     callback: (message: string) => void,
   ): Promise<void> {
     await this.subscriberClient.subscribe(channel);
+
     this.subscriberClient.on("message", (incomingChannel, message) => {
       if (incomingChannel === channel) {
         callback(message);
@@ -47,6 +56,9 @@ export class RedisCacheManager implements CacheManager<string, string> {
   }
 
   async disconnect(): Promise<void> {
-    await this.subscriberClient.unsubscribe("server-updates");
+    await Promise.all([
+      this.commandClient.quit(),
+      this.subscriberClient.quit(),
+    ]);
   }
 }

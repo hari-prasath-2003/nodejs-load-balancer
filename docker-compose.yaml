@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   redis:
     image: redis:latest
@@ -7,7 +5,29 @@ services:
     ports:
       - "6379:6379"
     command: >
-      sh -c "redis-server --daemonize yes && sleep 1 && redis-cli setnx loadbalancer-algorithm RoundRobin && redis-cli setnx active-servers webapp_container:3000 && redis-cli shutdown && redis-server"
+      sh -c "
+      redis-server --daemonize yes &&
+      sleep 1 &&
+
+      redis-cli SETNX loadbalancer-algorithm round-robin &&
+
+
+      redis-cli SADD active-backendPools-path /web /example /api &&
+
+      redis-cli SADD /web web1 &&
+      redis-cli SADD /api api1 api2 api3 &&
+      redis-cli SADD /example example1 &&
+
+
+      redis-cli HSET web1 address webapp_container:3000 &&
+      redis-cli HSET api1 address downstream1:5000 &&
+      redis-cli HSET api2 address downstream2:5000 &&
+      redis-cli HSET api3 address downstream3:5000 &&
+      redis-cli HSET example1 address http://example.com &&
+
+      redis-cli shutdown &&
+      redis-server
+      "
 
   loadbalancer:
     container_name: loadbalancer_container
@@ -24,3 +44,36 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8080:3000"
+
+  downstream1:
+    container_name: downstream1
+    build:
+      context: ./sampledownstream
+      dockerfile: Dockerfile
+    environment:
+      - SERVER_NAME=server1
+      - PORT=5000
+    ports:
+      - "5001:5000"
+
+  downstream2:
+    container_name: downstream2
+    build:
+      context: ./sampledownstream
+      dockerfile: Dockerfile
+    environment:
+      - SERVER_NAME=server2
+      - PORT=5000
+    ports:
+      - "5002:5000"
+
+  downstream3:
+    container_name: downstream3
+    build:
+      context: ./sampledownstream
+      dockerfile: Dockerfile
+    environment:
+      - SERVER_NAME=server3
+      - PORT=5000
+    ports:
+      - "5003:5000"
